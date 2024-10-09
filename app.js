@@ -127,7 +127,7 @@ app.use((err, req, res, next) => {
 });
 
 // Inicia o servidor na porta desejada (por exemplo, 3000)
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 7389;
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
 });
