@@ -52,7 +52,7 @@ GET /:uf/:ncm
 ### Exemplo de Requisição
 
 ```sh
-curl http://localhost:3000/SP/21069090
+curl http://localhost:7389/SP/21069090
 ```
 
 ## Como Contribuir
