@@ -9,6 +9,10 @@ OpenFiscal é um projeto open source que visa converter tabelas tributárias NCM
 - **Atualizações Frequentes**: Monitora as tabelas tributárias e mantém os dados atualizados para garantir a precisão das consultas.
 - **Transparência e Simplicidade**: Promove o acesso aberto aos dados fiscais, permitindo que desenvolvedores e empresas tenham informações tributárias claras.
 
+## Fonte dos Dados
+
+As tabelas tributárias utilizadas pelo OpenFiscal são fornecidas pelo [IBPT (Instituto Brasileiro de Planejamento e Tributação)](https://www.ibpt.com.br) e disponibilizadas pelo [SVN do ACBr](http://svn.code.sf.net/p/acbr/code/trunk2/Exemplos/ACBrTCP/ACBrIBPTax/tabela/).
+
 ## Requisitos
 
 - **Node.js** (v14 ou superior)
@@ -64,4 +68,3 @@ Contribuições são bem-vindas! Sinta-se à vontade para abrir issues ou enviar
 ## Licença
 
 Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICENSE) para mais detalhes.
-
