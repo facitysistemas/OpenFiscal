@@ -93,6 +93,9 @@ app.get('/:uf/:ncm', (req, res) => {
     if (produto) {
       const impostos = produto.i[ufUpper];
 
+      const totalTributosNacionais = (impostos.n || 0) + (impostos.es || 0) + (impostos.m || 0);
+      const totalTributosImportados = (impostos.im || 0) + (impostos.es || 0) + (impostos.m || 0);
+
       // Monta o objeto de resposta conforme o formato desejado
       const response = {
         Codigo: produto.c,
@@ -103,6 +106,8 @@ app.get('/:uf/:ncm', (req, res) => {
         Estadual: impostos.es,
         Importado: impostos.im,
         Municipal: impostos.m,
+        TotalTributosNacionais: totalTributosNacionais,
+        TotalTributosImportados: totalTributosImportados,
         Tipo: produto.t,
         VigenciaInicio: produto.vI || finalData.vI,
         VigenciaFim: produto.vF || finalData.vF,
