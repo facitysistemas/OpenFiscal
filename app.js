@@ -93,8 +93,10 @@ app.get('/:uf/:ncm', (req, res) => {
     if (produto) {
       const impostos = produto.i[ufUpper];
 
-      const totalTributosNacionais = (impostos.n || 0) + (impostos.es || 0) + (impostos.m || 0);
-      const totalTributosImportados = (impostos.im || 0) + (impostos.es || 0) + (impostos.m || 0);
+    // Calcula os totais de tributos
+    const totalTributosNacionais = Math.round(((impostos.n || 0) + (impostos.es || 0) + (impostos.m || 0)) * 100) / 100;
+    const totalTributosImportados = Math.round(((impostos.im || 0) + (impostos.es || 0) + (impostos.m || 0)) * 100) / 100;
+
 
       // Monta o objeto de resposta conforme o formato desejado
       const response = {
