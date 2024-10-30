@@ -88,6 +88,12 @@ async function generateJSON() {
     // Comparar as listas de arquivos
     const filesAreEqual = JSON.stringify(svnCsvFiles) === JSON.stringify(localCsvFiles);
 
+    // Verificar se o arquivo JSON já existe e está atualizado
+    if (filesAreEqual && fs.existsSync('resultado_otimizado.json')){
+     console.log(`[${new Date().toLocaleString()}] Os arquivos CSV estão atualizados e o arquivo JSON já existe. Não há necessidade de regenerar o JSON.`);
+      return;
+    }
+
     if (!filesAreEqual) {
       console.log('Os arquivos locais estão desatualizados ou foram adicionados novos arquivos. Excluindo arquivos antigos e baixando novos arquivos do SVN...');
 
