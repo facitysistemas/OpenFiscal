@@ -128,3 +128,7 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Ignorar a pasta csv_files e o arquivo resultado_otimizado.json
+csv_files/
+resultado_otimizado.json
