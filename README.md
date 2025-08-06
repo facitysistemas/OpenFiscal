@@ -1,6 +1,6 @@
 # OpenFiscal API
 
-![Node.js](https://img.shields.io/badge/Node.js-18.x-green)
+![Node.js](https://img.shields.io/badge/Node.js-22.x-green)
 ![Express.js](https://img.shields.io/badge/Express.js-4.x-blue)
 ![Database](https://img.shields.io/badge/Database-SQLite-orange)
 ![License](https://img.shields.io/badge/License-ISC-yellow)
@@ -61,7 +61,7 @@ Siga os passos abaixo para ter uma cópia do projeto rodando localmente.
 
 1.  Clone o repositório:
     ```bash
-    git clone [https://github.com/seu-usuario/seu-repositorio.git](https://github.com/seu-usuario/seu-repositorio.git)
+    git clone [https://github.com/facitysistemas/OpenFiscal.git](https://github.com/facitysistemas/OpenFiscal.git)
     ```
 2.  Navegue até o diretório do projeto:
     ```bash
