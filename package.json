@@ -1,19 +1,28 @@
 {
-  "name": "ibptconverter",
-  "version": "1.0.0",
-  "main": "index.js",
+  "name": "openfiscal-api",
+  "version": "2.0.0",
+  "description": "API otimizada para consulta de dados fiscais IBPT e CEST, com baixo uso de memória utilizando SQLite.",
+  "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js"
+    "start": "node app.js",
+    "update-db": "node generateDatabase.js"
   },
+  "keywords": [
+    "ncm",
+    "cest",
+    "ibpt",
+    "api",
+    "fiscal"
+  ],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
-    "axios": "^1.7.7",
-    "cheerio": "^1.0.0",
+    "axios": "^1.7.2",
+    "better-sqlite3": "^11.1.2",
+    "cheerio": "^1.0.0-rc.12",
     "csvtojson": "^2.0.10",
-    "express": "^4.21.0",
+    "express": "^4.19.2",
+    "json2csv": "^6.0.0-alpha.2",
     "node-cron": "^3.0.3"
   }
 }

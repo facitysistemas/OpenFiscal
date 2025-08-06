@@ -1,140 +1,109 @@
 const express = require('express');
-const app = express();
-const fs = require('fs');
+const Database = require('better-sqlite3');
 const path = require('path');
 
-// Caminho para o arquivo JSON
-const dataPath = path.join(__dirname, 'resultado_otimizado.json');
-
-// Variável para armazenar os dados
-let finalData = {};
-
-// Cria um índice para facilitar a busca por NCM
-const ncmIndex = {};
-
-// Função para carregar o JSON
-function loadJSON() {
-  try {
-    const rawData = fs.readFileSync(dataPath, 'utf8');
-    finalData = JSON.parse(rawData);
-    console.log(`[${new Date().toLocaleString()}] Dados JSON carregados com sucesso.`);
-    createIndex();
-  } catch (error) {
-    console.error('Erro ao carregar o JSON:', error.message);
-  }
-}
-
-// Carregar o JSON inicialmente
-loadJSON();
-
-// Monitorar alterações no arquivo JSON
-fs.watch(dataPath, (eventType, filename) => {
-  if (eventType === 'change') {
-    console.log(`[${new Date().toLocaleString()}] Detected change in JSON file. Reloading...`);
-    loadJSON();
-  }
-});
-
-// Função para criar o índice
-function createIndex() {
-  // Limpa o índice atual
-  for (let key in ncmIndex) {
-    delete ncmIndex[key];
-  }
-
-  Object.keys(finalData.d).forEach(key => {
-    const produto = finalData.d[key];
-    if (!ncmIndex[produto.c]) {
-      ncmIndex[produto.c] = [];
-    }
-    ncmIndex[produto.c].push(produto);
-  });
-  console.log(`[${new Date().toLocaleString()}] Índice de NCM criado/atualizado.`);
-}
-
-// Função para formatar o uso de memória
-// function formatMemoryUsage(data) {
-//   return `${Math.round((data / 1024 / 1024) * 100) / 100} MB`;
-// }
-
-// Exibe o uso de memória ao iniciar o servidor
-// const memoryUsage = process.memoryUsage();
-// console.log('Uso de memória inicial:');
-// console.log(`RSS: ${formatMemoryUsage(memoryUsage.rss)}`);
-// console.log(`Heap Total: ${formatMemoryUsage(memoryUsage.heapTotal)}`);
-// console.log(`Heap Usado: ${formatMemoryUsage(memoryUsage.heapUsed)}`);
-// console.log(`External: ${formatMemoryUsage(memoryUsage.external)}`);
-// console.log(`Array Buffers: ${formatMemoryUsage(memoryUsage.arrayBuffers)}`);
-
-// // Opcional: Exibir o uso de memória em intervalos regulares
-// setInterval(() => {
-//   const memoryUsage = process.memoryUsage();
-//   console.log('Uso de memória atual:');
-//   console.log(`RSS: ${formatMemoryUsage(memoryUsage.rss)}`);
-//   console.log(`Heap Total: ${formatMemoryUsage(memoryUsage.heapTotal)}`);
-//   console.log(`Heap Usado: ${formatMemoryUsage(memoryUsage.heapUsed)}`);
-//   console.log(`External: ${formatMemoryUsage(memoryUsage.external)}`);
-//   console.log(`Array Buffers: ${formatMemoryUsage(memoryUsage.arrayBuffers)}`);
-//   console.log('-----------------------------');
-// }, 60000); // Intervalo em milissegundos (60000 ms = 1 minuto)
-
-// Endpoint /:uf/:ncm
-app.get('/:uf/:ncm', (req, res) => {
-  const { uf, ncm } = req.params;
-  const ufUpper = uf.toUpperCase();
-
-  // Busca os produtos com o código NCM fornecido
-  const produtos = ncmIndex[ncm];
-
-  if (produtos && produtos.length > 0) {
-    // Procura um produto que tenha impostos para o UF especificado
-    const produto = produtos.find(p => p.i[ufUpper]);
-
-    if (produto) {
-      const impostos = produto.i[ufUpper];
-
-    // Calcula os totais de tributos
-    const totalTributosNacionais = Math.round(((impostos.n || 0) + (impostos.es || 0) + (impostos.m || 0)) * 100) / 100;
-    const totalTributosImportados = Math.round(((impostos.im || 0) + (impostos.es || 0) + (impostos.m || 0)) * 100) / 100;
-
-
-      // Monta o objeto de resposta conforme o formato desejado
-      const response = {
-        Codigo: produto.c,
-        UF: ufUpper,
-        EX: produto.e,
-        Descricao: produto.d,
-        Nacional: impostos.n,
-        Estadual: impostos.es,
-        Importado: impostos.im,
-        Municipal: impostos.m,
-        TotalTributosNacionais: totalTributosNacionais,
-        TotalTributosImportados: totalTributosImportados,
-        Tipo: produto.t,
-        VigenciaInicio: produto.vI || finalData.vI,
-        VigenciaFim: produto.vF || finalData.vF,
-        Chave: finalData.c,
-        Versao: finalData.v,
-        Fonte: finalData.f
-      };
-
-      res.json(response);
-    } else {
-      res.status(404).json({ error: 'UF não encontrado para o NCM especificado' });
-    }
-  } else {
-    res.status(404).json({ error: 'NCM não encontrado' });
-  }
-});
-
-// Middleware de tratamento de erros
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Ocorreu um erro no servidor.' });
-});
-
-// Inicia o servidor na porta desejada (por exemplo, 3000)
+const app = express();
 const PORT = process.env.PORT || 7389;
+
+const dbPath = path.join(__dirname, 'openfiscal.db');
+if (!require('fs').existsSync(dbPath)) {
+    console.error(`Erro: Banco de dados 'openfiscal.db' não encontrado.`);
+    console.error(`Execute 'node generateDatabase.js' primeiro para criar e popular o banco de dados.`);
+    process.exit(1);
+}
+
+const db = new Database(dbPath, { readonly: true });
+console.log('API conectada ao banco de dados SQLite.');
+
+// Prepara as consultas para reutilização e melhor performance
+const getIbptStmt = db.prepare('SELECT * FROM ibpt_taxes WHERE uf = ? AND ncm = ?');
+
+// << CORREÇÃO >>: A consulta agora busca o CEST e sua descrição
+//const getCestStmt = db.prepare("SELECT * FROM cest_data WHERE ? LIKE (ncm || '%')");
+// << CORREÇÃO >>: A consulta agora busca APENAS o CEST da correspondência mais específica (prefixo mais longo)
+const getCestStmt = db.prepare(`
+  SELECT *
+  FROM cest_data
+  WHERE ? LIKE (ncm || '%')
+    AND LENGTH(ncm) = (
+      SELECT MAX(LENGTH(ncm))
+      FROM cest_data
+      WHERE ? LIKE (ncm || '%')
+    )
+`);
+
+
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  next();
+});
+
+// Endpoint consolidado
+app.get('/ncm/:uf/:ncm', (req, res) => {
+  try {
+    const { uf } = req.params;
+    const ncmCompleto = req.params.ncm.replace(/\./g, '');
+    
+    const ibptData = getIbptStmt.get(uf.toUpperCase(), ncmCompleto);
+
+    if (!ibptData) {
+      return res.status(404).json({ error: 'Nenhum dado do IBPT encontrado para a UF e NCM especificados.' });
+    }
+
+    //const cestData = getCestStmt.all(ncmCompleto);
+    // << CORREÇÃO >>: Passa o NCM duas vezes, pois a nova query tem dois placeholders (?)
+    const cestData = getCestStmt.all(ncmCompleto, ncmCompleto);
+    
+    // << CORREÇÃO >>: Monta o objeto de resposta com o array de objetos para CESTs
+    const responseData = {
+      ...ibptData,
+      cests: cestData // O resultado de .all() já é um array de objetos {cest, descricao}
+    };
+
+    res.json(responseData);
+  } catch (error) {
+    console.error('Erro na consulta consolidada /ncm:', error.message);
+    res.status(500).json({ error: 'Erro interno no servidor.' });
+  }
+});
+
+// Endpoint para consultar APENAS dados do IBPT
+app.get('/ibpt/:uf/:ncm', (req, res) => {
+  try {
+    const { uf } = req.params;
+    const ncm = req.params.ncm.replace(/\./g, '');
+    
+    const data = getIbptStmt.get(uf.toUpperCase(), ncm);
+
+    if (data) {
+      res.json(data);
+    } else {
+      res.status(404).json({ error: 'Nenhum dado do IBPT encontrado para a UF e NCM especificados.' });
+    }
+  } catch (error) {
+    console.error('Erro na consulta /ibpt:', error.message);
+    res.status(500).json({ error: 'Erro interno no servidor.' });
+  }
+});
+
+// Endpoint para consultar APENAS dados do CEST
+app.get('/cest/:ncm', (req, res) => {
+  try {
+    const ncm = req.params.ncm.replace(/\./g, '');
+    //const data = getCestStmt.all(ncm);
+    const data = getCestStmt.all(ncm, ncm);
+
+    if (data && data.length > 0) {
+      res.json(data);
+    } else {
+      res.status(404).json({ error: 'Nenhum CEST encontrado para o NCM especificado.' });
+    }
+  } catch (error) {
+    console.error('Erro na consulta /cest:', error.message);
+    res.status(500).json({ error: 'Erro interno no servidor.' });
+  }
+});
+
 app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+  console.log(`Servidor OpenFiscal rodando na porta ${PORT}`);
 });
