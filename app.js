@@ -29,31 +29,68 @@ const getCestStmt = db.prepare(`
     )
 `);
 
+// consulta preparada para a busca por descrição usando FTS5.
+// A query usa o operador MATCH e ordena por relevância (rank).
+const searchNcmStmt = db.prepare(`
+  SELECT DISTINCT ncm, descricao 
+  FROM ibpt_search 
+  WHERE descricao MATCH ? 
+  ORDER BY rank 
+  LIMIT 15
+`);
+
+const getByCestStmt = db.prepare('SELECT * FROM cest_data WHERE cest = ?');
 
 app.use((req, res, next) => {
-  //console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  // Log de requisições (opcional)
+  // console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
   next();
 });
 
-// << MUDANÇA >>: Endpoint principal agora é /:uf/:ncm e monta a resposta no formato desejado
+// Novo endpoint para buscar NCMs por descrição de produto.
+app.get('/search/:descricao', (req, res) => {
+  try {
+    const { descricao } = req.params;
+    if (!descricao || descricao.length < 3) {
+      return res.status(400).json({ error: 'A descrição da busca deve ter pelo menos 3 caracteres.' });
+    }
+    
+    // O FTS5 espera que os termos sejam separados por operadores lógicos.
+    // Formatamos a string para que cada palavra seja um termo de busca obrigatório (AND).
+    const termoBusca = descricao.trim().split(/\s+/).join(' AND ');
+
+    const resultados = searchNcmStmt.all(termoBusca);
+
+    if (resultados && resultados.length > 0) {
+      res.json(resultados);
+    } else {
+      res.status(404).json({ error: 'Nenhum NCM encontrado para a descrição fornecida.' });
+    }
+  } catch (error) {
+    console.error('Erro na busca /search:', error.message);
+    res.status(500).json({ error: 'Erro interno no servidor.' });
+  }
+});
+
+
+// --- ENDPOINTS ORIGINAIS (FUNCIONANDO COMO ANTES) ---
+
+// Endpoint principal que retorna o objeto formatado
 app.get('/:uf/:ncm', (req, res) => {
   try {
     const { uf, ncm } = req.params;
     const ufUpper = uf.toUpperCase();
     const ncmCompleto = ncm.replace(/\./g, '');
     
-    // 1. Busca os dados do IBPT
     const ibptData = getIbptStmt.get(ufUpper, ncmCompleto);
 
     if (!ibptData) {
       return res.status(404).json({ error: 'NCM não encontrado para a UF especificada.' });
     }
 
-    // 2. Calcula os totais de tributos
     const totalTributosNacionais = Math.round(((ibptData.aliqNacional || 0) + (ibptData.aliqEstadual || 0) + (ibptData.aliqMunicipal || 0)) * 100) / 100;
     const totalTributosImportados = Math.round(((ibptData.aliqImportado || 0) + (ibptData.aliqEstadual || 0) + (ibptData.aliqMunicipal || 0)) * 100) / 100;
 
-    // 3. Monta o objeto de resposta principal no formato do projeto antigo
     const response = {
       Codigo: ibptData.ncm,
       UF: ibptData.uf,
@@ -73,12 +110,8 @@ app.get('/:uf/:ncm', (req, res) => {
       Fonte: ibptData.fonte
     };
     
-    // 4. Busca os dados do CEST
     const cestData = getCestStmt.all(ncmCompleto, ncmCompleto);
-    
-    // 5. Adiciona os dados do CEST ao objeto de resposta
     response.CESTs = cestData;
-
     res.json(response);
 
   } catch (error) {
@@ -87,10 +120,7 @@ app.get('/:uf/:ncm', (req, res) => {
   }
 });
 
-
-// Os endpoints antigos podem ser mantidos para consultas específicas, se desejar.
-// Eles continuarão funcionando como antes.
-
+// Endpoint para consultar APENAS dados brutos do IBPT
 app.get('/ibpt/:uf/:ncm', (req, res) => {
   try {
     const { uf, ncm } = req.params;
@@ -103,6 +133,7 @@ app.get('/ibpt/:uf/:ncm', (req, res) => {
   }
 });
 
+// Endpoint para consultar APENAS dados brutos do CEST
 app.get('/cest/:ncm', (req, res) => {
   try {
     const ncm = req.params.ncm.replace(/\./g, '');
@@ -111,6 +142,22 @@ app.get('/cest/:ncm', (req, res) => {
     else res.status(404).json({ error: 'Nenhum CEST encontrado para o NCM especificado.' });
   } catch (error) {
     console.error('Erro na consulta /cest:', error.message);
+    res.status(500).json({ error: 'Erro interno no servidor.' });
+  }
+});
+
+// Endpoint para buscar NCMs a partir de um código CEST.
+app.get('/cest/search/:cest', (req, res) => {
+  try {
+    const cest = req.params.cest.replace(/\./g, '');
+    const data = getByCestStmt.all(cest);
+    if (data && data.length > 0) {
+      res.json(data);
+    } else {
+      res.status(404).json({ error: 'Nenhum resultado encontrado para o CEST especificado.' });
+    }
+  } catch (error) {
+    console.error('Erro na consulta /cest/search:', error.message);
     res.status(500).json({ error: 'Erro interno no servidor.' });
   }
 });

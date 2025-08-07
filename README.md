@@ -5,7 +5,7 @@
 ![Database](https://img.shields.io/badge/Database-SQLite-orange)
 ![License](https://img.shields.io/badge/License-ISC-yellow)
 
-API otimizada para consulta de dados fiscais brasileiros (IBPT e CEST), com baixo uso de memória, atualizações automáticas e lógica de busca inteligente.
+API otimizada para consulta de dados fiscais brasileiros (IBPT e CEST), com baixo uso de memória, atualizações automáticas e funcionalidades avançadas de busca.
 
 ---
 
@@ -29,20 +29,21 @@ API otimizada para consulta de dados fiscais brasileiros (IBPT e CEST), com baix
 
 A **OpenFiscal API** é um serviço de back-end construído em Node.js que fornece uma interface RESTful para consultar dados fiscais brasileiros de forma rápida e eficiente. O sistema foi projetado para resolver a necessidade de acessar informações de **IBPT** (alíquotas de impostos) e **CEST** (Código Especificador da Substituição Tributária) relacionadas a um **NCM** (Nomenclatura Comum do Mercosul).
 
-O grande diferencial deste projeto é a sua arquitetura leve e performática, que utiliza um banco de dados local **SQLite** para evitar o alto consumo de memória. Além disso, ele possui um sistema de atualização automatizada que busca os dados mais recentes de fontes oficiais, garantindo a confiabilidade da informação.
+O grande diferencial deste projeto é a sua arquitetura leve e performática, que utiliza um banco de dados local **SQLite** com um motor de busca de texto completo (FTS5) integrado, garantindo consultas complexas com baixa pegada de memória.
 
 ### ✨ Principais Funcionalidades
 
 * **Consulta Consolidada**: Retorna um objeto de resposta rico com dados do IBPT, totais de tributos calculados e a lista de CESTs correspondentes.
+* **Busca Semântica por Descrição**: Um endpoint poderoso (`/search/:descricao`) que encontra os NCMs mais prováveis a partir de uma descrição de produto.
+* **Busca por CEST**: Um endpoint (`/cest/search/:cest`) para encontrar todos os NCMs associados a um código CEST específico.
 * **Atualização Automática**: Um script agendado (`cron`) busca e atualiza **semanalmente** (todo domingo às 2h da manhã) os dados de fontes oficiais.
-* **Busca Inteligente**: A lógica de busca por CEST encontra sempre a correspondência mais específica (prefixo de NCM mais longo), evitando ambiguidades.
-* **Baixo Consumo de Recursos**: O uso de SQLite (`better-sqlite3`) garante uma operação com baixa pegada de memória.
-* **Performance Otimizada**: Utiliza consultas preparadas (prepared statements) para máxima velocidade nas respostas da API.
+* **Lógica de Busca Inteligente**: A consulta de CEST por NCM encontra sempre a correspondência mais específica (prefixo de NCM mais longo), evitando ambiguidades.
+* **Performance Otimizada**: Utiliza consultas preparadas (prepared statements) e índices otimizados para máxima velocidade nas respostas da API.
 
 ### 💻 Tecnologias Utilizadas
 
 * **Back-end**: Node.js, Express.js
-* **Banco de Dados**: SQLite (com a biblioteca `better-sqlite3`)
+* **Banco de Dados**: SQLite (com a biblioteca `better-sqlite3` e extensão FTS5)
 * **Coleta de Dados**: Axios (requisições HTTP), Cheerio (web scraping)
 * **Processamento de Dados**: csvtojson, json2csv
 * **Agendamento de Tarefas**: node-cron
@@ -60,7 +61,7 @@ Siga os passos abaixo para ter uma cópia do projeto rodando localmente.
 
 1.  Clone o repositório:
     ```bash
-    git clone https://github.com/facitysistemas/OpenFiscal.git
+    git clone [https://github.com/facitysistemas/OpenFiscal.git](https://github.com/facitysistemas/OpenFiscal.git)
     ```
 2.  Navegue até o diretório do projeto:
     ```bash
@@ -94,16 +95,47 @@ A URL base da API é `http://localhost:7389`.
 
 ---
 
-#### 1. Consulta Principal e Consolidada
+#### 1. Endpoints de Busca
+
+* **Busca de NCM por Descrição (Semântica)**:
+    * **Endpoint**: `GET /search/:descricao`
+    * **Exemplo**: `GET http://localhost:7389/search/refrigerante`
+    * **Resposta**:
+        ```json
+        [
+            {
+                "ncm": "22021000",
+                "descricao": "Águas, incluindo as águas minerais e as águas gaseificadas, adicionadas de açúcar..."
+            },
+            {
+                "ncm": "21069010",
+                "descricao": "Preparações do tipo utilizado para elaboração de bebidas"
+            }
+        ]
+        ```
+
+* **Busca Completa por Código CEST**:
+    * **Endpoint**: `GET /cest/search/:cest`
+    * **Exemplo**: `GET http://localhost:7389/cest/search/0100100`
+    * **Resposta**:
+        ```json
+        [
+            {
+                "cest": "0100100",
+                "ncm": "87021000",
+                "descricao": "Veículos automóveis para transporte de 10 pessoas ou mais, incluindo o motorista..."
+            }
+        ]
+        ```
+
+---
+
+#### 2. Consulta Principal e Consolidada
 
 Este é o endpoint principal. Ele retorna um objeto completo contendo todos os dados fiscais do IBPT, totais de tributos calculados e a lista de CESTs aplicáveis.
 
 * **Endpoint**: `GET /:uf/:ncm`
-* **Parâmetros**:
-    * `:uf`: Sigla da Unidade Federativa (ex: `SP`, `PR`).
-    * `:ncm`: Código NCM (com ou sem pontos).
-* **Exemplo de Requisição**:
-    `GET http://localhost:7389/sp/39269090`
+* **Exemplo**: `GET http://localhost:7389/sp/39269090`
 * **Resposta de Sucesso (200 OK)**:
     ```json
     {
@@ -132,24 +164,16 @@ Este é o endpoint principal. Ele retorna um objeto completo contendo todos os d
         ]
     }
     ```
-* **Resposta de Erro (404 Not Found)**:
-    ```json
-    {
-        "error": "NCM não encontrado para a UF especificada."
-    }
-    ```
 
 ---
 
-#### 2. Endpoints Secundários (Dados Brutos)
+#### 3. Endpoints de Consulta Direta (Dados Brutos)
 
-Estes endpoints podem ser usados para consultar os dados brutos de cada tabela, caso necessário.
-
-* **Consulta apenas de IBPT**:
+* **Consulta de IBPT**:
     * **Endpoint**: `GET /ibpt/:uf/:ncm`
     * **Exemplo**: `GET http://localhost:7389/ibpt/sp/39269090`
 
-* **Consulta apenas de CEST**:
+* **Consulta de CEST por NCM**:
     * **Endpoint**: `GET /cest/:ncm`
     * **Exemplo**: `GET http://localhost:7389/cest/39269090`
 

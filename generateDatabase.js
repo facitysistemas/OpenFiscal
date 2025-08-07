@@ -14,7 +14,7 @@ const metadataFilePath = path.join(__dirname, 'cest_metadata.json');
 
 function criarTabelas() {
   console.log('Verificando e criando tabelas, se necessário...');
-  // << MUDANÇA >>: Adicionados novos campos à tabela ibpt_taxes
+  // Tabela principal de impostos do IBPT
   db.exec(`
     CREATE TABLE IF NOT EXISTS ibpt_taxes (
       ncm TEXT NOT NULL,
@@ -34,6 +34,7 @@ function criarTabelas() {
       PRIMARY KEY (ncm, uf)
     );
   `);
+  // Tabela de dados do CEST
   db.exec(`
     CREATE TABLE IF NOT EXISTS cest_data (
       cest TEXT NOT NULL,
@@ -42,9 +43,41 @@ function criarTabelas() {
       PRIMARY KEY (cest, ncm)
     );
   `);
+  // Índices para performance
   db.exec('CREATE INDEX IF NOT EXISTS idx_ncm_ibpt ON ibpt_taxes (ncm);');
   db.exec('CREATE INDEX IF NOT EXISTS idx_ncm_cest ON cest_data (ncm);');
-  console.log('Tabelas prontas.');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_cest_data_cest ON cest_data (cest);');
+
+  // Tabela virtual FTS5 para busca otimizada por texto completo.
+  db.exec(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS ibpt_search USING fts5(
+      ncm, 
+      descricao, 
+      content='ibpt_taxes', 
+      content_rowid='rowid',
+      tokenize = 'porter unicode61'
+    );
+  `);
+
+  // Gatilhos (Triggers) para manter a tabela de busca sincronizada.
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS ibpt_taxes_after_insert AFTER INSERT ON ibpt_taxes BEGIN
+      INSERT INTO ibpt_search(rowid, ncm, descricao) VALUES (new.rowid, new.ncm, new.descricao);
+    END;
+  `);
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS ibpt_taxes_after_delete AFTER DELETE ON ibpt_taxes BEGIN
+      INSERT INTO ibpt_search(ibpt_search, rowid, ncm, descricao) VALUES ('delete', old.rowid, old.ncm, old.descricao);
+    END;
+  `);
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS ibpt_taxes_after_update AFTER UPDATE ON ibpt_taxes BEGIN
+      INSERT INTO ibpt_search(ibpt_search, rowid, ncm, descricao) VALUES ('delete', old.rowid, old.ncm, old.descricao);
+      INSERT INTO ibpt_search(rowid, ncm, descricao) VALUES (new.rowid, new.ncm, new.descricao);
+    END;
+  `);
+
+  console.log('Tabelas e índice de busca prontos.');
 }
 
 async function processarIbpt() {
@@ -53,7 +86,6 @@ async function processarIbpt() {
   
   db.exec('DELETE FROM ibpt_taxes;');
   
-  // << MUDANÇA >>: A query de inserção foi atualizada para incluir os novos campos
   const insert = db.prepare(`
     INSERT OR REPLACE INTO ibpt_taxes (ncm, uf, ex, tipo, descricao, aliqNacional, aliqEstadual, aliqMunicipal, aliqImportado, vigenciaInicio, vigenciaFim, chave, versao, fonte)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -62,7 +94,6 @@ async function processarIbpt() {
   const inserirMuitos = db.transaction((linhas, uf) => {
     for (const linha of linhas) {
       const ncmLimpo = (linha.codigo || '').replace(/\./g, '');
-      // << MUDANÇA >>: insert.run agora passa todos os novos valores
       insert.run(
         ncmLimpo,
         uf,
@@ -110,6 +141,14 @@ async function processarIbpt() {
       inserirMuitos(jsonArray, ufDoArquivo);
     }
     console.log('Processamento do IBPT concluído.');
+
+    // << CORREÇÃO >>: Reconstrói o índice FTS5 para garantir a sincronização.
+    // Este comando é a forma mais segura de garantir que o índice de busca
+    // esteja perfeitamente alinhado com a tabela de dados após a importação em massa.
+    console.log('Reconstruindo índice de busca semântica...');
+    db.exec(`INSERT INTO ibpt_search(ibpt_search) VALUES('rebuild');`);
+    console.log('Índice de busca reconstruído com sucesso.');
+
   } catch (error) {
     console.error('Erro ao processar dados do IBPT:', error.message);
   }
