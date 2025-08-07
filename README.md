@@ -1,6 +1,6 @@
 # OpenFiscal API
 
-![Node.js](https://img.shields.io/badge/Node.js-22.x-green)
+![Node.js](https://img.shields.io/badge/Node.js-20.x_LTS-green)
 ![Express.js](https://img.shields.io/badge/Express.js-4.x-blue)
 ![Database](https://img.shields.io/badge/Database-SQLite-orange)
 ![License](https://img.shields.io/badge/License-ISC-yellow)
@@ -33,12 +33,11 @@ O grande diferencial deste projeto é a sua arquitetura leve e performática, qu
 
 ### ✨ Principais Funcionalidades
 
-* **Consulta Consolidada**: Retorna dados de IBPT e CEST em uma única requisição.
-* **Atualização Automática**: Um script agendado (`cron`) busca e atualiza diariamente os dados de fontes oficiais (tabelas do IBPT/ACBr e convênio do CONFAZ).
+* **Consulta Consolidada**: Retorna um objeto de resposta rico com dados do IBPT, totais de tributos calculados e a lista de CESTs correspondentes.
+* **Atualização Automática**: Um script agendado (`cron`) busca e atualiza **semanalmente** (todo domingo às 2h da manhã) os dados de fontes oficiais.
 * **Busca Inteligente**: A lógica de busca por CEST encontra sempre a correspondência mais específica (prefixo de NCM mais longo), evitando ambiguidades.
 * **Baixo Consumo de Recursos**: O uso de SQLite (`better-sqlite3`) garante uma operação com baixa pegada de memória.
 * **Performance Otimizada**: Utiliza consultas preparadas (prepared statements) para máxima velocidade nas respostas da API.
-* **Exportação de Dados**: Gera arquivos `JSON` e `CSV` com a base de dados completa e consolidada.
 
 ### 💻 Tecnologias Utilizadas
 
@@ -54,18 +53,18 @@ Siga os passos abaixo para ter uma cópia do projeto rodando localmente.
 
 ### ✅ Pré-requisitos
 
-* Node.js (versão 16.x ou superior)
+* Node.js (versão 20.x LTS ou superior)
 * npm (geralmente instalado com o Node.js)
 
 ### 📦 Instalação
 
 1.  Clone o repositório:
     ```bash
-    git clone [https://github.com/facitysistemas/OpenFiscal.git](https://github.com/facitysistemas/OpenFiscal.git)
+    git clone https://github.com/facitysistemas/OpenFiscal.git
     ```
 2.  Navegue até o diretório do projeto:
     ```bash
-    cd openfiscal-api
+    cd OpenFiscal
     ```
 3.  Instale as dependências do NPM:
     ```bash
@@ -95,34 +94,36 @@ A URL base da API é `http://localhost:7389`.
 
 ---
 
-#### 1. Consulta Consolidada (IBPT + CEST)
+#### 1. Consulta Principal e Consolidada
 
-Retorna os dados do IBPT e todos os CESTs correspondentes (da regra mais específica encontrada).
+Este é o endpoint principal. Ele retorna um objeto completo contendo todos os dados fiscais do IBPT, totais de tributos calculados e a lista de CESTs aplicáveis.
 
-* **Endpoint**: `GET /ncm/:uf/:ncm`
+* **Endpoint**: `GET /:uf/:ncm`
 * **Parâmetros**:
     * `:uf`: Sigla da Unidade Federativa (ex: `SP`, `PR`).
     * `:ncm`: Código NCM (com ou sem pontos).
 * **Exemplo de Requisição**:
-    `GET http://localhost:7389/ncm/sp/39269090`
+    `GET http://localhost:7389/sp/39269090`
 * **Resposta de Sucesso (200 OK)**:
     ```json
     {
-        "ncm": "39269090",
-        "uf": "SP",
-        "descricao": "Outras obras de plásticos",
-        "aliqNacional": 38.41,
-        "aliqEstadual": 12.00,
-        "aliqMunicipal": 0.00,
-        "aliqImportado": 38.41,
-        "vigenciaInicio": "2023-01-01",
-        "vigenciaFim": "2023-12-31",
-        "cests": [
-            {
-                "cest": "2803300",
-                "ncm": "39241000",
-                "descricao": "Artefatos de higiene ou de toucador"
-            },
+        "Codigo": "39269090",
+        "UF": "SP",
+        "EX": "001",
+        "Descricao": "Outras obras de plásticos",
+        "Nacional": 38.41,
+        "Estadual": 12.00,
+        "Importado": 38.41,
+        "Municipal": 0.00,
+        "TotalTributosNacionais": 50.41,
+        "TotalTributosImportados": 50.41,
+        "Tipo": "NBS",
+        "VigenciaInicio": "2023-01-01",
+        "VigenciaFim": "2023-12-31",
+        "Chave": "AAAA-BBBB",
+        "Versao": "24.2.A",
+        "Fonte": "IBPT",
+        "CESTs": [
             {
                 "cest": "1400400",
                 "ncm": "392690",
@@ -134,25 +135,23 @@ Retorna os dados do IBPT e todos os CESTs correspondentes (da regra mais especí
 * **Resposta de Erro (404 Not Found)**:
     ```json
     {
-        "error": "Nenhum dado do IBPT encontrado para a UF e NCM especificados."
+        "error": "NCM não encontrado para a UF especificada."
     }
     ```
 
 ---
 
-#### 2. Consulta Apenas de IBPT
+#### 2. Endpoints Secundários (Dados Brutos)
 
-* **Endpoint**: `GET /ibpt/:uf/:ncm`
-* **Exemplo de Requisição**:
-    `GET http://localhost:7389/ibpt/sp/39269090`
+Estes endpoints podem ser usados para consultar os dados brutos de cada tabela, caso necessário.
 
----
+* **Consulta apenas de IBPT**:
+    * **Endpoint**: `GET /ibpt/:uf/:ncm`
+    * **Exemplo**: `GET http://localhost:7389/ibpt/sp/39269090`
 
-#### 3. Consulta Apenas de CEST
-
-* **Endpoint**: `GET /cest/:ncm`
-* **Exemplo de Requisição**:
-    `GET http://localhost:7389/cest/39269090`
+* **Consulta apenas de CEST**:
+    * **Endpoint**: `GET /cest/:ncm`
+    * **Exemplo**: `GET http://localhost:7389/cest/39269090`
 
 ---
 
@@ -210,7 +209,7 @@ O script `generateDatabase.js` contém uma tarefa agendada que precisa estar sem
     ```
 2.  **Verifique o status de ambos os processos**:
     Após iniciar os dois serviços, o comando `pm2 list` deverá mostrar algo assim:
-    ```bash
+    ```
     ┌────┬──────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
     │ id │ name                 │ mode     │ ↺    │ status    │ cpu      │ memory   │
     ├────┼──────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
