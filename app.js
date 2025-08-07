@@ -41,13 +41,45 @@ const searchNcmStmt = db.prepare(`
 
 const getByCestStmt = db.prepare('SELECT * FROM cest_data WHERE cest = ?');
 
+// Consulta para buscar NCMs que começam com um determinado prefixo.
+const filterNcmByPrefixStmt = db.prepare(`
+  SELECT DISTINCT ncm, descricao
+  FROM ibpt_taxes
+  WHERE ncm LIKE ?
+  LIMIT 20
+`);
+
 app.use((req, res, next) => {
   // Log de requisições (opcional)
   // console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
   next();
 });
 
-// Novo endpoint para buscar NCMs por descrição de produto.
+
+// Endpoint para buscar NCMs por prefixo.
+app.get('/ncm/filter/:prefixo', (req, res) => {
+  try {
+    const { prefixo } = req.params;
+    // Validação para garantir que o prefixo contém apenas números
+    if (!/^\d+$/.test(prefixo)) {
+      return res.status(400).json({ error: 'O prefixo do NCM deve conter apenas números.' });
+    }
+
+    const termoBusca = `${prefixo}%`;
+    const resultados = filterNcmByPrefixStmt.all(termoBusca);
+
+    if (resultados && resultados.length > 0) {
+      res.json(resultados);
+    } else {
+      res.status(404).json({ error: 'Nenhum NCM encontrado para o prefixo fornecido.' });
+    }
+  } catch (error) {
+    console.error('Erro na busca /ncm/search:', error.message);
+    res.status(500).json({ error: 'Erro interno no servidor.' });
+  }
+});
+
+// Endpoint para buscar NCMs por descrição de produto.
 app.get('/search/:descricao', (req, res) => {
   try {
     const { descricao } = req.params;
