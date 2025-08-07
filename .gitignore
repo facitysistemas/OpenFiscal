@@ -5,6 +5,8 @@ node_modules
 openfiscal.db
 openfiscal.db*
 cest_metadata.json
+openfiscal_completo.csv
+openfiscal_completo.json
 
 # Logs
 *.log

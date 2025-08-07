@@ -12,13 +12,15 @@ const db = new Database('openfiscal.db');
 db.pragma('journal_mode = WAL');
 const metadataFilePath = path.join(__dirname, 'cest_metadata.json');
 
-// As funções de criação de tabelas e processamento de dados estão corretas
 function criarTabelas() {
   console.log('Verificando e criando tabelas, se necessário...');
+  // << MUDANÇA >>: Adicionados novos campos à tabela ibpt_taxes
   db.exec(`
     CREATE TABLE IF NOT EXISTS ibpt_taxes (
       ncm TEXT NOT NULL,
       uf TEXT NOT NULL,
+      ex TEXT,
+      tipo TEXT,
       descricao TEXT,
       aliqNacional REAL,
       aliqEstadual REAL,
@@ -26,6 +28,9 @@ function criarTabelas() {
       aliqImportado REAL,
       vigenciaInicio TEXT,
       vigenciaFim TEXT,
+      chave TEXT,
+      versao TEXT,
+      fonte TEXT,
       PRIMARY KEY (ncm, uf)
     );
   `);
@@ -48,24 +53,31 @@ async function processarIbpt() {
   
   db.exec('DELETE FROM ibpt_taxes;');
   
+  // << MUDANÇA >>: A query de inserção foi atualizada para incluir os novos campos
   const insert = db.prepare(`
-    INSERT OR REPLACE INTO ibpt_taxes (ncm, uf, descricao, aliqNacional, aliqEstadual, aliqMunicipal, aliqImportado, vigenciaInicio, vigenciaFim)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR REPLACE INTO ibpt_taxes (ncm, uf, ex, tipo, descricao, aliqNacional, aliqEstadual, aliqMunicipal, aliqImportado, vigenciaInicio, vigenciaFim, chave, versao, fonte)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const inserirMuitos = db.transaction((linhas, uf) => {
     for (const linha of linhas) {
       const ncmLimpo = (linha.codigo || '').replace(/\./g, '');
+      // << MUDANÇA >>: insert.run agora passa todos os novos valores
       insert.run(
         ncmLimpo,
         uf,
+        linha.ex,
+        linha.tipo,
         linha.descricao,
         parseFloat(String(linha.nacionalfederal || '0').replace(',', '.')),
         parseFloat(String(linha.estadual || '0').replace(',', '.')),
         parseFloat(String(linha.municipal || '0').replace(',', '.')),
         parseFloat(String(linha.importadosfederal || '0').replace(',', '.')),
         linha.vigenciainicio,
-        linha.vigenciafim
+        linha.vigenciafim,
+        linha.chave,
+        linha.versao,
+        linha.fonte
       );
     }
   });
@@ -155,7 +167,6 @@ async function processarCest() {
             }
         });
 
-       
         if (todosOsItens.length > 0) {
             db.exec('DELETE FROM cest_data;');
             const insert = db.prepare('INSERT OR IGNORE INTO cest_data (cest, ncm, descricao) VALUES (?, ?, ?)');
@@ -163,11 +174,7 @@ async function processarCest() {
                 for (const item of itens) {
                     const cestLimpo = (item.CEST || '').replace(/\./g, '');
                     item.NCM_SH.forEach(ncm => {
-                        // << LINHA CORRIGIDA >>
-                        // Remove qualquer caractere que não seja um número (pontos, vírgulas, etc.)
-                        const ncmLimpo = ncm.replace(/[^\d]/g, ''); 
-                        
-                        // Apenas insere se o ncmLimpo não estiver vazio após a limpeza
+                        const ncmLimpo = ncm.replace(/[^\d]/g, '');
                         if (ncmLimpo) {
                             insert.run(cestLimpo, ncmLimpo, item.Descricao);
                         }
@@ -191,12 +198,9 @@ async function processarCest() {
     }
 }
 
-// << FUNÇÃO DE EXPORTAÇÃO CORRIGIDA >>
 async function exportarArquivos() {
   console.log('\nIniciando exportação para JSON e CSV...');
   try {
-    // << CORREÇÃO >>: A consulta agora usa a mesma lógica do app.js para encontrar
-    // apenas os CESTs da correspondência mais específica (prefixo mais longo).
     const query = `
       SELECT
           i.ncm, i.uf, i.descricao, i.aliqNacional, i.aliqEstadual,
@@ -225,7 +229,6 @@ async function exportarArquivos() {
         return;
     }
 
-    // O restante da função não precisa de alteração
     const dadosParaJson = todosOsDados.map(row => ({
         ...row,
         cests: row.cests ? JSON.parse(row.cests) : [] 
@@ -250,11 +253,12 @@ async function exportarArquivos() {
   }
 }
 
+
 async function main() {
     criarTabelas();
     await processarIbpt();
     await processarCest();
-    //await exportarArquivos();
+    await exportarArquivos();
 
     db.close();
     console.log("Processo de atualização e exportação finalizado. Conexão com o banco de dados fechada.");

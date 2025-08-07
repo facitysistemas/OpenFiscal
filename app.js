@@ -18,9 +18,6 @@ console.log('API conectada ao banco de dados SQLite.');
 // Prepara as consultas para reutilização e melhor performance
 const getIbptStmt = db.prepare('SELECT * FROM ibpt_taxes WHERE uf = ? AND ncm = ?');
 
-// << CORREÇÃO >>: A consulta agora busca o CEST e sua descrição
-//const getCestStmt = db.prepare("SELECT * FROM cest_data WHERE ? LIKE (ncm || '%')");
-// << CORREÇÃO >>: A consulta agora busca APENAS o CEST da correspondência mais específica (prefixo mais longo)
 const getCestStmt = db.prepare(`
   SELECT *
   FROM cest_data
@@ -34,75 +31,90 @@ const getCestStmt = db.prepare(`
 
 
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  //console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
   next();
 });
 
-// Endpoint consolidado
-app.get('/ncm/:uf/:ncm', (req, res) => {
+// << MUDANÇA >>: Endpoint principal agora é /:uf/:ncm e monta a resposta no formato desejado
+app.get('/:uf/:ncm', (req, res) => {
   try {
-    const { uf } = req.params;
-    const ncmCompleto = req.params.ncm.replace(/\./g, '');
+    const { uf, ncm } = req.params;
+    const ufUpper = uf.toUpperCase();
+    const ncmCompleto = ncm.replace(/\./g, '');
     
-    const ibptData = getIbptStmt.get(uf.toUpperCase(), ncmCompleto);
+    // 1. Busca os dados do IBPT
+    const ibptData = getIbptStmt.get(ufUpper, ncmCompleto);
 
     if (!ibptData) {
-      return res.status(404).json({ error: 'Nenhum dado do IBPT encontrado para a UF e NCM especificados.' });
+      return res.status(404).json({ error: 'NCM não encontrado para a UF especificada.' });
     }
 
-    //const cestData = getCestStmt.all(ncmCompleto);
-    // << CORREÇÃO >>: Passa o NCM duas vezes, pois a nova query tem dois placeholders (?)
+    // 2. Calcula os totais de tributos
+    const totalTributosNacionais = Math.round(((ibptData.aliqNacional || 0) + (ibptData.aliqEstadual || 0) + (ibptData.aliqMunicipal || 0)) * 100) / 100;
+    const totalTributosImportados = Math.round(((ibptData.aliqImportado || 0) + (ibptData.aliqEstadual || 0) + (ibptData.aliqMunicipal || 0)) * 100) / 100;
+
+    // 3. Monta o objeto de resposta principal no formato do projeto antigo
+    const response = {
+      Codigo: ibptData.ncm,
+      UF: ibptData.uf,
+      EX: ibptData.ex,
+      Descricao: ibptData.descricao,
+      Nacional: ibptData.aliqNacional,
+      Estadual: ibptData.aliqEstadual,
+      Importado: ibptData.aliqImportado,
+      Municipal: ibptData.aliqMunicipal,
+      TotalTributosNacionais: totalTributosNacionais,
+      TotalTributosImportados: totalTributosImportados,
+      Tipo: ibptData.tipo,
+      VigenciaInicio: ibptData.vigenciaInicio,
+      VigenciaFim: ibptData.vigenciaFim,
+      Chave: ibptData.chave,
+      Versao: ibptData.versao,
+      Fonte: ibptData.fonte
+    };
+    
+    // 4. Busca os dados do CEST
     const cestData = getCestStmt.all(ncmCompleto, ncmCompleto);
     
-    // << CORREÇÃO >>: Monta o objeto de resposta com o array de objetos para CESTs
-    const responseData = {
-      ...ibptData,
-      cests: cestData // O resultado de .all() já é um array de objetos {cest, descricao}
-    };
+    // 5. Adiciona os dados do CEST ao objeto de resposta
+    response.CESTs = cestData;
 
-    res.json(responseData);
+    res.json(response);
+
   } catch (error) {
-    console.error('Erro na consulta consolidada /ncm:', error.message);
+    console.error('Erro na consulta /:uf/:ncm:', error.message);
     res.status(500).json({ error: 'Erro interno no servidor.' });
   }
 });
 
-// Endpoint para consultar APENAS dados do IBPT
+
+// Os endpoints antigos podem ser mantidos para consultas específicas, se desejar.
+// Eles continuarão funcionando como antes.
+
 app.get('/ibpt/:uf/:ncm', (req, res) => {
   try {
-    const { uf } = req.params;
-    const ncm = req.params.ncm.replace(/\./g, '');
-    
-    const data = getIbptStmt.get(uf.toUpperCase(), ncm);
-
-    if (data) {
-      res.json(data);
-    } else {
-      res.status(404).json({ error: 'Nenhum dado do IBPT encontrado para a UF e NCM especificados.' });
-    }
+    const { uf, ncm } = req.params;
+    const data = getIbptStmt.get(uf.toUpperCase(), ncm.replace(/\./g, ''));
+    if (data) res.json(data);
+    else res.status(404).json({ error: 'Nenhum dado do IBPT encontrado para a UF e NCM especificados.' });
   } catch (error) {
     console.error('Erro na consulta /ibpt:', error.message);
     res.status(500).json({ error: 'Erro interno no servidor.' });
   }
 });
 
-// Endpoint para consultar APENAS dados do CEST
 app.get('/cest/:ncm', (req, res) => {
   try {
     const ncm = req.params.ncm.replace(/\./g, '');
-    //const data = getCestStmt.all(ncm);
     const data = getCestStmt.all(ncm, ncm);
-
-    if (data && data.length > 0) {
-      res.json(data);
-    } else {
-      res.status(404).json({ error: 'Nenhum CEST encontrado para o NCM especificado.' });
-    }
+    if (data && data.length > 0) res.json(data);
+    else res.status(404).json({ error: 'Nenhum CEST encontrado para o NCM especificado.' });
   } catch (error) {
     console.error('Erro na consulta /cest:', error.message);
     res.status(500).json({ error: 'Erro interno no servidor.' });
   }
 });
+
 
 app.listen(PORT, () => {
   console.log(`Servidor OpenFiscal rodando na porta ${PORT}`);
