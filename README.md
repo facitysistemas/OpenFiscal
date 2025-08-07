@@ -9,6 +9,18 @@ API otimizada para consulta de dados fiscais brasileiros (IBPT e CEST), com baix
 
 ---
 
+## ⚠️ Aviso Legal e de Responsabilidade
+
+**O objetivo deste repositório é estritamente educacional e colaborativo, visando facilitar o acesso e a consolidação de informações fiscais públicas.**
+
+As informações contidas neste projeto são coletadas de fontes oficiais e públicas, mas são fornecidas "como estão", sem garantias de qualquer tipo, expressas ou implícitas, sobre sua precisão, completude ou atualidade. A legislação tributária é complexa e está em constante mudança.
+
+**A responsabilidade pelo uso das informações obtidas através desta API é inteiramente sua.**
+
+**Observação Importante:** Antes de utilizar os dados desta API em qualquer ambiente de produção ou para fins fiscais oficiais, é **obrigatório** que você consulte seu contador ou um profissional de contabilidade qualificado. Apenas um profissional pode validar e aprovar o uso dessas informações de acordo com as particularidades da sua empresa e a legislação vigente.
+
+---
+
 ## 📋 Tabela de Conteúdos
 
 1.  [Sobre o Projeto](#-sobre-o-projeto)
