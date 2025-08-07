@@ -268,7 +268,7 @@ if (require.main === module) {
     main().catch(console.error);
 }
 
-cron.schedule('0 2 * * *', () => {
+cron.schedule('0 2 * * 0', () => {
     console.log('Executando tarefa agendada de atualização do banco de dados...');
     main().catch(console.error);
 });
