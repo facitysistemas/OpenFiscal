@@ -258,7 +258,7 @@ async function main() {
     criarTabelas();
     await processarIbpt();
     await processarCest();
-    await exportarArquivos();
+    //await exportarArquivos();
 
     db.close();
     console.log("Processo de atualização e exportação finalizado. Conexão com o banco de dados fechada.");
