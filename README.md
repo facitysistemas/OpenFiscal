@@ -13,7 +13,7 @@ API otimizada para consulta de dados fiscais brasileiros (IBPT e CEST), com baix
 
 **O objetivo deste repositório é estritamente educacional e colaborativo, visando facilitar o acesso e a consolidação de informações fiscais públicas.**
 
-As informações contidas neste projeto são coletadas de fontes oficiais e públicas, mas são fornecidas "como estão", sem garantias de qualquer tipo, expressas ou implícitas, sobre sua precisão, completude ou atualidade. A legislação tributária é complexa e está em constante mudança.
+As informações contidas neste projeto são coletadas de fontes oficiais e públicas e fontes secundarias como o projeto ACBR, mas são fornecidas "como estão", sem garantias de qualquer tipo, expressas ou implícitas, sobre sua precisão, completude ou atualidade. A legislação tributária é complexa e está em constante mudança.
 
 **A responsabilidade pelo uso das informações obtidas através desta API é inteiramente sua.**
 
