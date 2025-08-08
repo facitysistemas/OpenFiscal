@@ -5,7 +5,7 @@
 ![Database](https://img.shields.io/badge/Database-SQLite-orange)
 ![License](https://img.shields.io/badge/License-ISC-yellow)
 
-API otimizada para consulta de dados fiscais brasileiros (IBPT e CEST), com baixo uso de memória, atualizações automáticas e funcionalidades avançadas de busca.
+API otimizada para consulta de dados fiscais brasileiros (NCM, CEST, IBPT), com baixo uso de memória, atualizações automáticas e lógica de busca inteligente.
 
 ---
 
