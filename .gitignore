@@ -16,3 +16,7 @@ yarn-error.log*
 
 # Arquivos de ambiente
 .env
+
+# Cobertura de testes (gerada automaticamente)
+coverage/
+*.lcov
